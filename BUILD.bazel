@@ -1,0 +1,12 @@
+load("@rules_java//toolchains:default_java_toolchain.bzl", "default_java_toolchain")
+load("@rules_java//java:defs.bzl", "java_library")
+load("@contrib_rules_jvm//java:defs.bzl", "java_test_suite")
+load("@com_google_protobuf//bazel:java_proto_library.bzl", "java_proto_library")
+load("@io_grpc_grpc_java//:java_grpc_library.bzl", "java_grpc_library")
+
+default_java_toolchain(
+    name = "default_java21_toolchain",
+    java_runtime = "@rules_java//toolchains:remotejdk_21",
+    source_version = "21",
+    target_version = "21",
+)
