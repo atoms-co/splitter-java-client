@@ -10,3 +10,22 @@ default_java_toolchain(
     source_version = "21",
     target_version = "21",
 )
+
+java_proto_library(
+    name = "splitter_proto_library",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@co_atoms_go_splitter//proto/atoms/splitter:splitter_proto",
+    ],
+)
+
+java_grpc_library(
+    name = "splitter_grpc_library",
+    srcs = [
+        "@co_atoms_go_splitter//proto/atoms/splitter:splitter_proto",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":splitter_proto_library",
+    ],
+)

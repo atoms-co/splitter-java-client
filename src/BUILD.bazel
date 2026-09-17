@@ -1,0 +1,117 @@
+load("@rules_java//toolchains:default_java_toolchain.bzl", "default_java_toolchain")
+load("@rules_java//java:defs.bzl", "java_library")
+load("@contrib_rules_jvm//java:defs.bzl", "java_test_suite")
+load("@com_google_protobuf//bazel:java_proto_library.bzl", "java_proto_library")
+load("@io_grpc_grpc_java//:java_grpc_library.bzl", "java_grpc_library")
+
+java_library(
+    name = "client",
+    srcs = glob(
+        ["**/*.java"],
+        exclude = [
+            "**/*Test*.java",
+            "**/testing/**",
+        ],
+    ),
+    visibility = ["//visibility:public"],
+    exports = [
+        "//:splitter_grpc_library",
+        "//:splitter_proto_library",
+        "@maven//:co_atoms_lib_net_location_location",
+        "@maven//:co_atoms_lib_net_session_session",
+        "@maven//:io_grpc_grpc_api",
+        "@maven//:io_grpc_grpc_stub",
+    ],
+    deps = [
+        "//:splitter_grpc_library",
+        "//:splitter_proto_library",
+        "@maven//:co_atoms_lib_net_location_location",
+        "@maven//:co_atoms_lib_net_session_session",
+        "@maven//:com_github_ben_manes_caffeine_caffeine",
+        "@maven//:com_google_code_findbugs_annotations",
+        "@maven//:com_google_guava_guava",
+        "@maven//:com_google_protobuf_protobuf_java",
+        "@maven//:io_grpc_grpc_api",
+        "@maven//:io_grpc_grpc_netty_shaded",
+        "@maven//:io_grpc_grpc_stub",
+        "@maven//:io_opentelemetry_opentelemetry_api",
+        "@maven//:net_logstash_logback_logstash_logback_encoder",
+        "@maven//:org_slf4j_slf4j_api",
+    ],
+)
+
+java_library(
+    name = "client-test-lib",
+    srcs = glob(
+        ["**/testing/*.java"],
+        exclude = [
+            "internal/testing/**",
+        ],
+    ),
+    visibility = ["//visibility:public"],
+    exports = [
+        ":client",
+        "//:splitter_grpc_library",
+        "//:splitter_proto_library",
+        "@maven//:co_atoms_lib_net_location_location",
+        "@maven//:co_atoms_lib_net_session_session",
+        "@maven//:io_grpc_grpc_api",
+        "@maven//:io_grpc_grpc_stub",
+    ],
+    deps = [
+        ":client",
+        "//:splitter_grpc_library",
+        "//:splitter_proto_library",
+        "@maven//:co_atoms_lib_net_location_location",
+        "@maven//:co_atoms_lib_net_session_session",
+        "@maven//:com_github_ben_manes_caffeine_caffeine",
+        "@maven//:com_google_code_findbugs_annotations",
+        "@maven//:com_google_guava_guava",
+        "@maven//:com_google_protobuf_protobuf_java",
+        "@maven//:io_grpc_grpc_api",
+        "@maven//:io_grpc_grpc_netty_shaded",
+        "@maven//:io_grpc_grpc_stub",
+        "@maven//:io_opentelemetry_opentelemetry_api",
+        "@maven//:net_logstash_logback_logstash_logback_encoder",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+        "@maven//:org_slf4j_slf4j_api",
+    ],
+)
+
+java_test_suite(
+    name = "test",
+    srcs = glob([
+        "**/*Test*.java",
+        "internal/testing/*.java",
+    ]),
+    data = [
+        "@co_atoms_go_splitter//testing/testcases/cluster",
+    ],
+    env = {
+        "TESTCASES_LOCATIONS": "$(locations @co_atoms_go_splitter//testing/testcases/cluster:cluster)",
+    },
+    package = "co.atoms.splitter",
+    runner = "junit5",
+    runtime_deps = [
+        "@maven//:org_junit_jupiter_junit_jupiter_engine",
+        "@maven//:org_junit_platform_junit_platform_launcher",
+        "@maven//:org_junit_platform_junit_platform_reporting",
+    ],
+    deps = [
+        ":client",
+        ":client-test-lib",
+        "@bazel_tools//tools/java/runfiles",
+        "@maven//:ch_qos_logback_logback_classic",
+        "@maven//:com_google_code_findbugs_annotations",
+        "@maven//:com_google_guava_guava",
+        "@maven//:com_google_protobuf_protobuf_java",
+        "@maven//:com_google_truth_truth",
+        "@maven//:io_opentelemetry_opentelemetry_api",
+        "@maven//:io_opentelemetry_opentelemetry_sdk_common",
+        "@maven//:io_opentelemetry_opentelemetry_sdk_metrics",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+        "@maven//:org_junit_jupiter_junit_jupiter_params",
+        "@maven//:org_slf4j_slf4j_api",
+        "@maven//:org_yaml_snakeyaml",
+    ],
+)
