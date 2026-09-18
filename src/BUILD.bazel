@@ -3,6 +3,10 @@ load("@rules_java//java:defs.bzl", "java_library")
 load("@contrib_rules_jvm//java:defs.bzl", "java_test_suite")
 load("@com_google_protobuf//bazel:java_proto_library.bzl", "java_proto_library")
 load("@io_grpc_grpc_java//:java_grpc_library.bzl", "java_grpc_library")
+load("@rules_jvm_external//:defs.bzl", "maven_export")
+
+MAVEN_COORDINATES = "co.atoms.splitter:client:$(maven_version)"
+MAVEN_TESTING_COORDINATES = "co.atoms.splitter:client-testing:$(maven_version)"
 
 java_library(
     name = "client",
@@ -13,6 +17,7 @@ java_library(
             "**/testing/**",
         ],
     ),
+    tags = ["maven_coordinates=%s" % MAVEN_COORDINATES],
     visibility = ["//visibility:public"],
     exports = [
         "//:splitter_grpc_library",
@@ -40,6 +45,17 @@ java_library(
     ],
 )
 
+maven_export(
+    name = "client_export",
+    deploy_env = ["@maven//:io_grpc_grpc_protobuf"],
+    excluded_workspaces = {
+        "grpc-java": "@maven//:io_grpc_grpc_protobuf",
+    },
+    lib_name = "client",
+    maven_coordinates = MAVEN_COORDINATES,
+    pom_template = "pom.xml.tpl",
+)
+
 java_library(
     name = "client-test-lib",
     srcs = glob(
@@ -48,6 +64,7 @@ java_library(
             "internal/testing/**",
         ],
     ),
+    tags = ["maven_coordinates=%s" % MAVEN_TESTING_COORDINATES],
     visibility = ["//visibility:public"],
     exports = [
         ":client",
@@ -76,6 +93,17 @@ java_library(
         "@maven//:org_junit_jupiter_junit_jupiter_api",
         "@maven//:org_slf4j_slf4j_api",
     ],
+)
+
+maven_export(
+    name = "client_testing_export",
+    deploy_env = ["@maven//:io_grpc_grpc_protobuf"],
+    excluded_workspaces = {
+        "grpc-java": "@maven//:io_grpc_grpc_protobuf",
+    },
+    lib_name = "client-test-lib",
+    maven_coordinates = MAVEN_TESTING_COORDINATES,
+    pom_template = "client-testing-pom.xml.tpl",
 )
 
 java_test_suite(

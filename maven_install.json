@@ -16,6 +16,7 @@
     "com.google.truth:truth": -790731381,
     "io.grpc:grpc-api": -1427927322,
     "io.grpc:grpc-netty-shaded": -416148650,
+    "io.grpc:grpc-protobuf": -1156800883,
     "io.grpc:grpc-stub": -822982326,
     "io.opentelemetry:opentelemetry-api": -1065153439,
     "io.opentelemetry:opentelemetry-sdk-common": -1089116777,
@@ -56,6 +57,8 @@
     "io.grpc:grpc-context": 2088260520,
     "io.grpc:grpc-core": -294951705,
     "io.grpc:grpc-netty-shaded": -685404865,
+    "io.grpc:grpc-protobuf": -1145150255,
+    "io.grpc:grpc-protobuf-lite": -1293087872,
     "io.grpc:grpc-stub": 894313848,
     "io.grpc:grpc-util": 329035728,
     "io.opentelemetry:opentelemetry-api": 1236084094,
@@ -237,6 +240,18 @@
     "io.grpc:grpc-netty-shaded": {
       "shasums": {
         "jar": "30f1dbd6bfd234fcae557a011ac112aa82f54ec78d108bf26ca4665f6ff95bb3"
+      },
+      "version": "1.82.0"
+    },
+    "io.grpc:grpc-protobuf": {
+      "shasums": {
+        "jar": "646142efcbaad8aa682da9a163716b82919b6fe44e4c64527c552d2048712235"
+      },
+      "version": "1.82.0"
+    },
+    "io.grpc:grpc-protobuf-lite": {
+      "shasums": {
+        "jar": "da4fc0d44879716d4530487f33c67c927b472de112759f65c5c31bfb8721d0eb"
       },
       "version": "1.82.0"
     },
@@ -478,6 +493,19 @@
       "io.grpc:grpc-util",
       "io.perfmark:perfmark-api",
       "org.codehaus.mojo:animal-sniffer-annotations"
+    ],
+    "io.grpc:grpc-protobuf": [
+      "com.google.api.grpc:proto-google-common-protos",
+      "com.google.code.findbugs:jsr305",
+      "com.google.guava:guava",
+      "com.google.protobuf:protobuf-java",
+      "io.grpc:grpc-api",
+      "io.grpc:grpc-protobuf-lite"
+    ],
+    "io.grpc:grpc-protobuf-lite": [
+      "com.google.code.findbugs:jsr305",
+      "com.google.guava:guava",
+      "io.grpc:grpc-api"
     ],
     "io.grpc:grpc-stub": [
       "com.google.errorprone:error_prone_annotations",
@@ -828,6 +856,12 @@
       "io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.util",
       "io.grpc.netty.shaded.io.netty.util.internal.svm"
     ],
+    "io.grpc:grpc-protobuf": [
+      "io.grpc.protobuf"
+    ],
+    "io.grpc:grpc-protobuf-lite": [
+      "io.grpc.protobuf.lite"
+    ],
     "io.grpc:grpc-stub": [
       "io.grpc.stub",
       "io.grpc.stub.annotations"
@@ -1143,6 +1177,8 @@
       "io.grpc:grpc-context",
       "io.grpc:grpc-core",
       "io.grpc:grpc-netty-shaded",
+      "io.grpc:grpc-protobuf",
+      "io.grpc:grpc-protobuf-lite",
       "io.grpc:grpc-stub",
       "io.grpc:grpc-util",
       "io.opentelemetry:opentelemetry-api",
