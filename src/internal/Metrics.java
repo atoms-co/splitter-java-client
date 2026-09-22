@@ -30,10 +30,10 @@ public class Metrics {
       AttributeKey.stringKey("source_version");
   private static final AttributeKey<String> LOCATION_KEY = AttributeKey.stringKey("location");
 
-  private static final String SHARDS_NAME = "atoms_co_splitter_client_workpool_grants";
-  private static final String FORWARDED_REQUESTS_NAME = "atoms_co_splitter_client_forwarded_requests";
-  private static final String HANDLED_REQUESTS_NAME = "atoms_co_splitter_client_handled_requests";
-  private static final String GRANT_DURATION_NAME = "atoms_co_splitter_client_grant_duration";
+  private static final String SHARDS_NAME = "co_atoms_splitter_client_workpool_grants";
+  private static final String FORWARDED_REQUESTS_NAME = "co_atoms_splitter_client_forwarded_requests";
+  private static final String HANDLED_REQUESTS_NAME = "co_atoms_splitter_client_handled_requests";
+  private static final String GRANT_DURATION_NAME = "co_atoms_splitter_client_grant_duration";
 
   private static final BucketOptions GRANT_DURATION_BUCKETS =
       BucketOptions.of(
