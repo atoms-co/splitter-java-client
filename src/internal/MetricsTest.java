@@ -24,7 +24,7 @@ public class MetricsTest {
 
       assertThat(
               metrics.longGauge(
-                  "atoms_co_splitter_client_workpool_grants",
+                  "co_atoms_splitter_client_workpool_grants",
                   Map.of(
                       "tenant", "test-tenant",
                       "service", "test-service",
@@ -56,8 +56,8 @@ public class MetricsTest {
               "source", "splitter-java-client",
               "source_version", Consumer.CLIENT_VERSION,
               "location", "us/node-1");
-      assertThat(metrics.longSum("atoms_co_splitter_client_forwarded_requests", labels)).isEqualTo(2L);
-      assertThat(metrics.longSum("atoms_co_splitter_client_handled_requests", labels)).isEqualTo(1L);
+      assertThat(metrics.longSum("co_atoms_splitter_client_forwarded_requests", labels)).isEqualTo(2L);
+      assertThat(metrics.longSum("co_atoms_splitter_client_handled_requests", labels)).isEqualTo(1L);
     }
   }
 
@@ -75,9 +75,9 @@ public class MetricsTest {
               "domain", "test-domain",
               "source", "splitter-java-client",
               "source_version", Consumer.CLIENT_VERSION);
-      assertThat(metrics.histogramCount("atoms_co_splitter_client_grant_duration", labels))
+      assertThat(metrics.histogramCount("co_atoms_splitter_client_grant_duration", labels))
           .isEqualTo(1L);
-      assertThat(metrics.histogramSum("atoms_co_splitter_client_grant_duration", labels))
+      assertThat(metrics.histogramSum("co_atoms_splitter_client_grant_duration", labels))
           .isWithin(1e-9)
           .of(42.0);
     }
