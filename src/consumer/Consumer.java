@@ -42,7 +42,7 @@ import org.slf4j.LoggerFactory;
 public class Consumer extends AbstractService {
 
   /** Version of the client library. Should be kept in sync with Go client version. */
-  public static final String CLIENT_VERSION = "1.2.3";
+  public static final String CLIENT_VERSION = "1.2.4";
 
   private static final Logger LOGGER = LoggerFactory.getLogger(Consumer.class);
 
