@@ -7,7 +7,6 @@ import io.grpc.ManagedChannel;
 import java.time.Duration;
 import java.util.function.Function;
 
-import io.grpc.ManagedChannelBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
@@ -22,9 +21,9 @@ public class GrpcStubsCache<STUB> {
 
   private final LoadingCache<Instance, StubWithChannel<STUB>> stubs;
   private final Function<ManagedChannel, STUB> stubFactory;
-  private final Function<String, ManagedChannelBuilder<?>> channelFactory;
+  private final Function<String, ManagedChannel> channelFactory;
 
-  public GrpcStubsCache(Function<ManagedChannel, STUB> stubFactory, Function<String, ManagedChannelBuilder<?>> channelFactory) {
+  public GrpcStubsCache(Function<ManagedChannel, STUB> stubFactory, Function<String, ManagedChannel> channelFactory) {
     this.stubFactory = stubFactory;
     this.channelFactory = channelFactory;
     stubs =
@@ -38,7 +37,7 @@ public class GrpcStubsCache<STUB> {
   }
 
   public GrpcStubsCache(Function<ManagedChannel, STUB> stubFactory) {
-    this(stubFactory, NettyChannelBuilder::forTarget);
+    this(stubFactory, t -> NettyChannelBuilder.forTarget(t).build());
   }
 
   public STUB getStub(Instance consumer) {
@@ -46,7 +45,7 @@ public class GrpcStubsCache<STUB> {
   }
 
   private StubWithChannel<STUB> buildStub(Instance instance) {
-    var channel = channelFactory.apply(instance.endpoint()).build();
+    var channel = channelFactory.apply(instance.endpoint());
     return new StubWithChannel<>(channel, stubFactory.apply(channel));
   }
 

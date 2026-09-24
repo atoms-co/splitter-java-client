@@ -48,6 +48,32 @@ public class GrpcRequestForwarder<
    * @param consumer Splitter consumer
    * @param grantManager Grant manager, usually an instance of a subclass of {@link
    *     BaseWorkProcessor}
+   * @param stubsCache Cache with stubs.
+   * @param remoteHandler Invokes gRPC request
+   * @param retryer Retryer to use when forwarding requests
+   * @param timeout Timeout for one invocation of the request executed to a remote instance.
+   */
+  public GrpcRequestForwarder(
+      Consumer consumer,
+      GrantManager<R> grantManager,
+      GrpcStubsCache<STUB> stubsCache,
+      RemoteHandler<REQ, RESP, STUB> remoteHandler,
+      OwnershipRetryer retryer,
+      Duration timeout) {
+    this.consumer = consumer;
+    this.grantManager = grantManager;
+    this.remoteHandler = remoteHandler;
+    this.retryer = retryer;
+    this.stubs = stubsCache;
+    this.timeout = timeout;
+  }
+
+  /**
+   * Creates a new forwarder.
+   *
+   * @param consumer Splitter consumer
+   * @param grantManager Grant manager, usually an instance of a subclass of {@link
+   *     BaseWorkProcessor}
    * @param stubFactory Creates a new gRPC stub. The created stubs are cached using {@link
    *     GrpcStubsCache}.
    * @param remoteHandler Invokes gRPC request
@@ -61,12 +87,7 @@ public class GrpcRequestForwarder<
       RemoteHandler<REQ, RESP, STUB> remoteHandler,
       OwnershipRetryer retryer,
       Duration timeout) {
-    this.consumer = consumer;
-    this.grantManager = grantManager;
-    this.remoteHandler = remoteHandler;
-    this.retryer = retryer;
-    this.stubs = new GrpcStubsCache<STUB>(stubFactory);
-    this.timeout = timeout;
+    this(consumer, grantManager, new GrpcStubsCache<STUB>(stubFactory), remoteHandler, retryer, timeout);
   }
 
   /**
