@@ -3,3 +3,4 @@
 .ijwb
 bazel-*
 MODULE.bazel.lock
+.bazelbsp

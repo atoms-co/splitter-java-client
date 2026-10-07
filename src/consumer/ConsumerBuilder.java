@@ -41,6 +41,7 @@ public class ConsumerBuilder {
   private @Nullable Integer capacityLimit;
   private @Nullable DomainKeyName[] keyNames;
   private @Nullable BooleanSupplier verbose;
+  private @Nullable String version;
 
   /**
    * Creates a new builder for a {@link Consumer} with default values. It will use the local IP
@@ -134,6 +135,16 @@ public class ConsumerBuilder {
     return this;
   }
 
+  /**
+   * Sets the consumer version.
+   *
+   * @return the builder with the version set
+   */
+  public ConsumerBuilder withVersion(String version) {
+    this.version = version;
+    return this;
+  }
+
   public Consumer build() {
     var clock = this.clock;
     if (clock == null) {
@@ -155,10 +166,16 @@ public class ConsumerBuilder {
     if (verbose == null) {
       verbose = () -> false;
     }
+    var version = this.version;
 
     Function<Stream<Grant>, JoinMessage> registerFactory =
         (grants) -> {
           var register = Messages.createRegisterBuilder(instance, service, grants);
+          if (version != null) {
+            var md = ClientMessage.Register.Metadata.newBuilder();
+            md.setVersion(version);
+            register.setMetadata(md);
+          }
           if (capacityLimit == null && keyNames == null) {
             return Messages.createRegister(register.build());
           }
@@ -173,7 +190,7 @@ public class ConsumerBuilder {
                 Stream.of(keyNames).map(Object::toString).collect(Collectors.joining(", ")));
             opts = opts.addAllNames(Stream.of(keyNames).map(DomainKeyName::toProto).toList());
           }
-          register = register.setOptions(opts.build());
+          register.setOptions(opts.build());
           return Messages.createRegister(register.build());
         };
 
