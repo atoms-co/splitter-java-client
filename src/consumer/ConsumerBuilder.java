@@ -42,6 +42,7 @@ public class ConsumerBuilder {
   private @Nullable DomainKeyName[] keyNames;
   private @Nullable BooleanSupplier verbose;
   private @Nullable String version;
+  private @Nullable PeerChannels peerChannels;
 
   /**
    * Creates a new builder for a {@link Consumer} with default values. It will use the local IP
@@ -145,6 +146,18 @@ public class ConsumerBuilder {
     return this;
   }
 
+  /**
+   * Sets the pool of channels to peer consumers. By default, the pool uses the standard gRPC
+   * builder with plaintext transport. The consumer manages the pool's lifecycle: channels follow
+   * cluster membership and close on shutdown.
+   *
+   * @return the builder with the peer channels set
+   */
+  public ConsumerBuilder withPeerChannels(PeerChannels peerChannels) {
+    this.peerChannels = peerChannels;
+    return this;
+  }
+
   public Consumer build() {
     var clock = this.clock;
     if (clock == null) {
@@ -167,6 +180,10 @@ public class ConsumerBuilder {
       verbose = () -> false;
     }
     var version = this.version;
+    var peerChannels = this.peerChannels;
+    if (peerChannels == null) {
+      peerChannels = new PeerChannels(Consumer.DEFAULT_PEER_CHANNEL_FACTORY);
+    }
 
     Function<Stream<Grant>, JoinMessage> registerFactory =
         (grants) -> {
@@ -203,7 +220,8 @@ public class ConsumerBuilder {
         handlerPool,
         scheduler,
         verbose,
-        registerFactory);
+        registerFactory,
+        peerChannels);
   }
 
   static Instance defaultInstance(int port) {

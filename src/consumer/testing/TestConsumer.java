@@ -11,6 +11,8 @@ import co.atoms.splitter.model.Grant;
 import co.atoms.splitter.model.Instance;
 import co.atoms.splitter.model.QualifiedServiceName;
 import co.atoms.splitter.model.Shard;
+import co.atoms.splitter.proto.ClusterMessage;
+import co.atoms.splitter.proto.ConsumerMessage;
 import co.atoms.splitter.proto.JoinMessage;
 import co.atoms.splitter.testing.Fixtures;
 import co.atoms.splitter.testing.MoreMessages;
@@ -296,5 +298,20 @@ public class TestConsumer extends Consumer {
   public void sendClusterAssign(
       int version, co.atoms.splitter.cluster.Messages.Assignment... assignments) {
     send(MoreMessages.newClusterAssign(SERVER.getId(), version, assignments));
+  }
+
+  /** Sends a message to the consumer removing consumers from the cluster map */
+  public void sendClusterRemove(int version, String... consumers) {
+    var remove = ClusterMessage.Remove.newBuilder().addAllConsumers(Arrays.asList(consumers));
+    send(
+        JoinMessage.newBuilder()
+            .setConsumer(
+                ConsumerMessage.newBuilder()
+                    .setCluster(
+                        ClusterMessage.newBuilder()
+                            .setId(SERVER.getId())
+                            .setVersion(version)
+                            .setChange(ClusterMessage.Change.newBuilder().setRemove(remove))))
+            .build());
   }
 }

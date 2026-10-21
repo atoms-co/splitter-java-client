@@ -13,6 +13,7 @@ import static co.atoms.splitter.testing.Fixtures.TS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import co.atoms.splitter.cluster.GrantInfo;
@@ -28,10 +29,15 @@ import co.atoms.splitter.testing.MutableClock;
 import co.atoms.splitter.testing.TestStreamObserver;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.AbstractBlockingStub;
 import io.grpc.stub.StreamObserver;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -224,6 +230,73 @@ public class GrpcRequestForwarderTest {
     assertForwarded(o -> forwarder.forward(key5, key5, o), key5);
 
     consumer.stopAsync();
+  }
+
+  @Test
+  public void handleRemoteWithExistingStubCache(TestInfo testInfo) {
+    var processor = new TestWorkProcessor((id, shard, ownership) -> new TestRange());
+    var consumer =
+        TestConsumer.create(
+            Fixtures.createClock(), testInfo.getDisplayName(), DOMAIN1.service(), processor);
+    consumer.initialize(EXP);
+
+    var instance = Fixtures.newInstance("remote");
+    var grant = GrantInfo.create("g1", SHARD_D2_GLOBAL_5c, ALLOCATED_LOADED);
+    consumer.sendClusterSnapshot(MoreMessages.newAssignment(instance, grant));
+
+    var dialed = new ArrayList<String>();
+    var channel = ManagedChannelBuilder.forTarget(instance.endpoint()).usePlaintext().build();
+    var cache =
+        new GrpcStubsCache<>(
+            managedChannel -> new TestStub(managedChannel, CallOptions.DEFAULT),
+            target -> {
+              dialed.add(target);
+              return channel;
+            });
+    try {
+      var stub = cache.getStub(instance);
+      assertSame(stub, cache.getStub(instance));
+      var forwarder =
+          new GrpcRequestForwarder<>(
+              consumer,
+              processor,
+              cache,
+              (remote, request) -> {
+                assertSame(channel, remote.getChannel());
+                var deadline = remote.getCallOptions().getDeadline();
+                assertTrue(deadline.timeRemaining(TimeUnit.MILLISECONDS) > 0);
+                assertTrue(deadline.timeRemaining(TimeUnit.MILLISECONDS) <= 17000);
+                return remote.handle(request);
+              },
+              retrier,
+              Duration.ofSeconds(17));
+      var key = Fixtures.newKey(DOMAIN2, "5");
+      assertForwarded(o -> forwarder.forward(key, key, o), key);
+      assertForwarded(o -> forwarder.forward(key, key, o), key);
+      assertEquals(List.of(instance.endpoint()), dialed);
+      assertNull(stub.getCallOptions().getDeadline());
+
+      consumer.sendClusterRemove(1, instance.id());
+      assertFalse(channel.isShutdown());
+      consumer.stop();
+      consumer.awaitTerminated();
+      // Existing caches keep ownership of their channels, even after consumer shutdown.
+      assertFalse(channel.isShutdown());
+    } finally {
+      channel.shutdownNow();
+    }
+  }
+
+  @Test
+  public void existingStubCacheDefaultConstructor() {
+    var cache = new GrpcStubsCache<>(channel -> new TestStub(channel, CallOptions.DEFAULT));
+    var instance = Fixtures.newInstance("remote");
+    var stub = cache.getStub(instance);
+    try {
+      assertSame(stub, cache.getStub(instance));
+    } finally {
+      ((ManagedChannel) stub.getChannel()).shutdownNow();
+    }
   }
 
   @Test
