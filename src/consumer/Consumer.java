@@ -16,6 +16,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.RateLimiter;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
 import java.time.Clock;
 import java.util.List;
 import java.util.Set;
@@ -61,6 +63,12 @@ public class Consumer extends AbstractService {
   private ClusterMap cluster;
   private final Object lock = new Object();
 
+  /** Dials plaintext channels with the standard gRPC builder unless the application overrides it. */
+  static final Function<String, ManagedChannel> DEFAULT_PEER_CHANNEL_FACTORY =
+      target -> ManagedChannelBuilder.forTarget(target).usePlaintext().build();
+
+  private final PeerChannels peerChannels;
+
   /**
    * Creates a new consumer with default values. It will use the local IP address, pod region and
    * pod hostname to register with the coordinator. The grant handlers will be started in a new
@@ -99,6 +107,36 @@ public class Consumer extends AbstractService {
       ScheduledExecutorService scheduler,
       BooleanSupplier verbose,
       Function<Stream<Grant>, JoinMessage> registerFactory) {
+    this(
+        clock,
+        service,
+        instance,
+        joinClient,
+        handler,
+        handlerPool,
+        scheduler,
+        verbose,
+        registerFactory,
+        new PeerChannels(DEFAULT_PEER_CHANNEL_FACTORY));
+  }
+
+  /**
+   * Creates a new consumer with the given peer channel pool.
+   *
+   * @param peerChannels Pool of channels to peer consumers. The consumer manages its lifecycle:
+   *     channels follow cluster membership and close on shutdown.
+   */
+  protected Consumer(
+      Clock clock,
+      QualifiedServiceName service,
+      Instance instance,
+      JoinClient joinClient,
+      WorkHandler handler,
+      ExecutorService handlerPool,
+      ScheduledExecutorService scheduler,
+      BooleanSupplier verbose,
+      Function<Stream<Grant>, JoinMessage> registerFactory,
+      PeerChannels peerChannels) {
     this.clock = clock;
     this.instance = instance;
     this.service = service;
@@ -117,6 +155,7 @@ public class Consumer extends AbstractService {
     this.cluster = new ClusterMap(ClusterId.DEFAULT, List.of());
     this.verbose = verbose;
     this.registerFactory = registerFactory;
+    this.peerChannels = peerChannels;
   }
 
   /**
@@ -132,6 +171,13 @@ public class Consumer extends AbstractService {
    */
   public Instance getInstance() {
     return instance;
+  }
+
+  /**
+   * @return channels to other consumers in the cluster, closed as consumers leave.
+   */
+  public PeerChannels getPeerChannels() {
+    return peerChannels;
   }
 
   /**
@@ -259,13 +305,18 @@ public class Consumer extends AbstractService {
   }
 
   private void handleClusterMessage(ClusterMessage msg) {
+    List<Instance> consumers = null;
     synchronized (lock) {
       try {
         this.cluster =
             this.cluster.update(co.atoms.splitter.cluster.Messages.ClusterMessage.fromProto(msg));
+        consumers = this.cluster.getConsumers();
       } catch (Exception e) {
         LOGGER.error("Failed to update cluster with message {}. Ignoring the update.", msg, e);
       }
+    }
+    if (consumers != null) {
+      peerChannels.retain(consumers);
     }
   }
 
@@ -291,6 +342,7 @@ public class Consumer extends AbstractService {
     } catch (InterruptedException e) {
       throw new RuntimeException(e);
     } finally {
+      peerChannels.close();
       notifyStopped();
     }
   }

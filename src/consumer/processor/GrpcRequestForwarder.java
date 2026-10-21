@@ -4,6 +4,7 @@ import co.atoms.splitter.consumer.Consumer;
 import co.atoms.splitter.consumer.processor.exceptions.GrpcExceptions;
 import co.atoms.splitter.internal.Metrics;
 import co.atoms.splitter.model.GrantState;
+import co.atoms.splitter.model.Instance;
 import co.atoms.splitter.model.Location;
 import co.atoms.splitter.model.QualifiedDomainKey;
 import io.grpc.ManagedChannel;
@@ -37,13 +38,16 @@ public class GrpcRequestForwarder<
 
   private final Consumer consumer;
   private final GrantManager<R> grantManager;
-  private final GrpcStubsCache<STUB> stubs;
+  private final Function<Instance, STUB> stubProvider;
   private final RemoteHandler<REQ, RESP, STUB> remoteHandler;
   private final OwnershipRetryer retryer;
   private final Duration timeout;
 
   /**
    * Creates a new forwarder.
+   *
+   * <p>The supplied cache retains its own channel factory and expiration policy;
+   * its channels are not managed by the consumer's peer channel pool.
    *
    * @param consumer Splitter consumer
    * @param grantManager Grant manager, usually an instance of a subclass of {@link
@@ -60,12 +64,7 @@ public class GrpcRequestForwarder<
       RemoteHandler<REQ, RESP, STUB> remoteHandler,
       OwnershipRetryer retryer,
       Duration timeout) {
-    this.consumer = consumer;
-    this.grantManager = grantManager;
-    this.remoteHandler = remoteHandler;
-    this.retryer = retryer;
-    this.stubs = stubsCache;
-    this.timeout = timeout;
+    this(consumer, grantManager, remoteHandler, retryer, timeout, stubsCache::getStub);
   }
 
   /**
@@ -74,8 +73,8 @@ public class GrpcRequestForwarder<
    * @param consumer Splitter consumer
    * @param grantManager Grant manager, usually an instance of a subclass of {@link
    *     BaseWorkProcessor}
-   * @param stubFactory Creates a new gRPC stub. The created stubs are cached using {@link
-   *     GrpcStubsCache}.
+   * @param stubFactory Creates a new gRPC stub over a channel from the consumer's {@link
+   *     co.atoms.splitter.consumer.PeerChannels}.
    * @param remoteHandler Invokes gRPC request
    * @param retryer Retryer to use when forwarding requests
    * @param timeout Timeout for one invocation of the request executed to a remote instance.
@@ -87,7 +86,28 @@ public class GrpcRequestForwarder<
       RemoteHandler<REQ, RESP, STUB> remoteHandler,
       OwnershipRetryer retryer,
       Duration timeout) {
-    this(consumer, grantManager, new GrpcStubsCache<STUB>(stubFactory), remoteHandler, retryer, timeout);
+    this(
+        consumer,
+        grantManager,
+        remoteHandler,
+        retryer,
+        timeout,
+        instance -> stubFactory.apply(consumer.getPeerChannels().channel(instance)));
+  }
+
+  private GrpcRequestForwarder(
+      Consumer consumer,
+      GrantManager<R> grantManager,
+      RemoteHandler<REQ, RESP, STUB> remoteHandler,
+      OwnershipRetryer retryer,
+      Duration timeout,
+      Function<Instance, STUB> stubProvider) {
+    this.consumer = consumer;
+    this.grantManager = grantManager;
+    this.remoteHandler = remoteHandler;
+    this.retryer = retryer;
+    this.stubProvider = stubProvider;
+    this.timeout = timeout;
   }
 
   /**
@@ -96,8 +116,8 @@ public class GrpcRequestForwarder<
    * @param consumer Splitter consumer
    * @param grantManager Grant manager, usually an instance of a subclass of {@link
    *     BaseWorkProcessor}
-   * @param stubFactory Creates a new gRPC stub. The created stubs are cached using {@link
-   *     GrpcStubsCache}.
+   * @param stubFactory Creates a new gRPC stub over a channel from the consumer's {@link
+   *     co.atoms.splitter.consumer.PeerChannels}.
    * @param remoteHandler Invokes gRPC request
    * @param retryer Retryer to use when forwarding requests
    */
@@ -177,7 +197,7 @@ public class GrpcRequestForwarder<
       return;
     }
     var consumer = owner.get().consumer();
-    var stub = stubs.getStub(consumer);
+    var stub = stubProvider.apply(consumer);
     if (stub == null) {
       LOGGER.error("No stub found for instance {}", consumer);
       Metrics.recordForwardedRequest(key.domain(), "unknown", "owner_not_found", Location.UNKNOWN);

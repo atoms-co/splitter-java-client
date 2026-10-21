@@ -12,8 +12,11 @@ import org.slf4j.LoggerFactory;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 
 /**
- * Cache for gRPC stubs to avoid creating new channels on each request. Stubs are created using the
- * provided factory method and are cached for some time after last access.
+ * Cache for gRPC stubs to avoid creating new channels on each request. Entries expire ten minutes
+ * after last access; this cache does not track consumer membership.
+ *
+ * <p>Retained for compatibility. New callers should use the consumer's {@link
+ * co.atoms.splitter.consumer.PeerChannels} and create stubs over its shared channels.
  */
 public class GrpcStubsCache<STUB> {
 

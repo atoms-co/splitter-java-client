@@ -11,7 +11,9 @@ import static co.atoms.splitter.testing.Fixtures.SHARD_D1_UNIT_0e;
 import static co.atoms.splitter.testing.Fixtures.SHARD_D2_GLOBAL_15;
 import static co.atoms.splitter.testing.Fixtures.TS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Timeout.ThreadMode.SEPARATE_THREAD;
 
 import co.atoms.splitter.cluster.Cluster;
@@ -20,12 +22,14 @@ import co.atoms.splitter.consumer.testing.TestConsumer;
 import co.atoms.splitter.model.Grant;
 import co.atoms.splitter.model.GrantState;
 import co.atoms.splitter.model.Instance;
+import co.atoms.splitter.model.Location;
 import co.atoms.splitter.model.Shard;
 import co.atoms.splitter.testing.Fixtures;
 import co.atoms.splitter.testing.Gate;
 import co.atoms.splitter.testing.MoreMessages;
 import java.time.Clock;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -78,6 +82,68 @@ public class ConsumerTest {
     assertEquals(actualGrants, grants);
 
     deps.stop();
+  }
+
+  @Test
+  void consumerRemovalClosesPeerChannel(TestInfo testInfo) throws Exception {
+    var deps = setupDeps(testInfo);
+
+    deps.consumer.initialize(EXP);
+
+    var other = Instance.create("other-id", Location.LOCAL, TS, "other", "other-endpoint");
+    var g1 = GrantInfo.create("g1", SHARD_D1_UNIT_0e, GrantState.ALLOCATED_LOADED);
+    var g2 = GrantInfo.create("g2", SHARD_D2_GLOBAL_15, GrantState.ACTIVE);
+    deps.consumer.sendClusterSnapshot(
+        List.of(SHARD_D1_UNIT_0e, SHARD_D2_GLOBAL_15),
+        MoreMessages.newAssignment(deps.instance, g1),
+        MoreMessages.newAssignment(other, g2));
+    assertEquals(deps.consumer.getCluster().getConsumers().size(), 2);
+
+    var channel = deps.consumer.getPeerChannels().channel(other);
+    assertFalse(channel.isShutdown());
+
+    deps.consumer.sendClusterRemove(1, other.id());
+
+    assertEquals(deps.consumer.getCluster().getConsumers(), List.of(deps.instance));
+    // Caffeine runs removal listeners asynchronously.
+    awaitShutdown(channel);
+
+    // Stopping the consumer closes the remaining peer channels.
+    var retained = deps.consumer.getPeerChannels().channel(deps.instance);
+    deps.stop();
+    awaitShutdown(retained);
+  }
+
+  private static void awaitShutdown(io.grpc.ManagedChannel channel) throws InterruptedException {
+    for (int i = 0; i < 1000 && !channel.isShutdown(); i++) {
+      Thread.sleep(10);
+    }
+    assertTrue(channel.isShutdown());
+  }
+
+  @Test
+  void builderSharesInjectedPeerChannels() {
+    var dialed = new ArrayList<String>();
+    var peerChannels =
+        new PeerChannels(
+            target -> {
+              dialed.add(target);
+              return io.grpc.ManagedChannelBuilder.forTarget(target).usePlaintext().build();
+            });
+    var consumer =
+        new ConsumerBuilder(
+                DOMAIN1.service(),
+                responseObserver -> null,
+                (id, shard, ownership) -> {},
+                Fixtures.newInstance("factory-test"))
+            .withPeerChannels(peerChannels)
+            .build();
+
+    assertEquals(peerChannels, consumer.getPeerChannels());
+    var other = Instance.create("other-id", Location.LOCAL, TS, "other", "other-endpoint");
+    var channel = consumer.getPeerChannels().channel(other);
+    assertEquals(List.of("other-endpoint"), dialed);
+    channel.shutdown();
   }
 
   @Test
