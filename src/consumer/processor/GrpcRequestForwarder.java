@@ -46,30 +46,6 @@ public class GrpcRequestForwarder<
   /**
    * Creates a new forwarder.
    *
-   * <p>The supplied cache retains its own channel factory and expiration policy;
-   * its channels are not managed by the consumer's peer channel pool.
-   *
-   * @param consumer Splitter consumer
-   * @param grantManager Grant manager, usually an instance of a subclass of {@link
-   *     BaseWorkProcessor}
-   * @param stubsCache Cache with stubs.
-   * @param remoteHandler Invokes gRPC request
-   * @param retryer Retryer to use when forwarding requests
-   * @param timeout Timeout for one invocation of the request executed to a remote instance.
-   */
-  public GrpcRequestForwarder(
-      Consumer consumer,
-      GrantManager<R> grantManager,
-      GrpcStubsCache<STUB> stubsCache,
-      RemoteHandler<REQ, RESP, STUB> remoteHandler,
-      OwnershipRetryer retryer,
-      Duration timeout) {
-    this(consumer, grantManager, remoteHandler, retryer, timeout, stubsCache::getStub);
-  }
-
-  /**
-   * Creates a new forwarder.
-   *
    * @param consumer Splitter consumer
    * @param grantManager Grant manager, usually an instance of a subclass of {@link
    *     BaseWorkProcessor}
@@ -86,27 +62,11 @@ public class GrpcRequestForwarder<
       RemoteHandler<REQ, RESP, STUB> remoteHandler,
       OwnershipRetryer retryer,
       Duration timeout) {
-    this(
-        consumer,
-        grantManager,
-        remoteHandler,
-        retryer,
-        timeout,
-        instance -> stubFactory.apply(consumer.getPeerChannels().channel(instance)));
-  }
-
-  private GrpcRequestForwarder(
-      Consumer consumer,
-      GrantManager<R> grantManager,
-      RemoteHandler<REQ, RESP, STUB> remoteHandler,
-      OwnershipRetryer retryer,
-      Duration timeout,
-      Function<Instance, STUB> stubProvider) {
     this.consumer = consumer;
     this.grantManager = grantManager;
     this.remoteHandler = remoteHandler;
     this.retryer = retryer;
-    this.stubProvider = stubProvider;
+    this.stubProvider = instance -> stubFactory.apply(consumer.getPeerChannels().channel(instance));
     this.timeout = timeout;
   }
 
