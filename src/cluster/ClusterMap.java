@@ -254,8 +254,7 @@ public class ClusterMap implements Cluster {
           continue;
         }
 
-        // Ensure the consumer is copied even if it has no grants. Note that snapshot will remove
-        // old consumers without grants.
+        // Copy consumers before merging their grants; prune empty retained consumers below.
         if (!cluster.consumers.containsKey(cid)) {
           cluster.consumers.put(
               cid,
@@ -282,6 +281,9 @@ public class ClusterMap implements Cluster {
           }
         }
       }
+
+      // Retained consumers are only needed while their old grants survive.
+      cluster.consumers.values().removeIf(info -> info.isRetained() && info.grants().isEmpty());
 
       return cluster;
     }
