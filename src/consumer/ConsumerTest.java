@@ -170,6 +170,28 @@ public class ConsumerTest {
   }
 
   @Test
+  public void stopWhileReconnecting(TestInfo testInfo) {
+    var deps = setupDeps(testInfo);
+
+    deps.consumer.initialize(EXP);
+
+    var g1 = Grant.create("g1", SHARD_D1_UNIT_0e, ALLOCATED, EXP, TS);
+    deps.assign(g1);
+
+    deps.consumer.terminateConnection();
+    deps.consumer.assertSentEstablish();
+
+    // Shutdown picks a session (revoking grants) before the replacement session is established.
+    deps.consumer.stopAsync();
+    deps.grants.get("g1").revoked.await();
+
+    // The replacement session is still deregistered.
+    deps.consumer.sendEstablished();
+    deps.consumer.assertSentRegister(g1);
+    deps.waitForOrderlyStop();
+  }
+
+  @Test
   public void terminatedBeforeEstablished(TestInfo testInfo) {
     var deps = setupDeps(testInfo);
 

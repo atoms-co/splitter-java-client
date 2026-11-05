@@ -44,7 +44,7 @@ import org.slf4j.LoggerFactory;
 public class Consumer extends AbstractService {
 
   /** Version of the client library. Should be kept in sync with Go client version. */
-  public static final String CLIENT_VERSION = "1.2.7";
+  public static final String CLIENT_VERSION = "1.2.8";
 
   private static final Logger LOGGER = LoggerFactory.getLogger(Consumer.class);
 
@@ -59,8 +59,13 @@ public class Consumer extends AbstractService {
   private final BooleanSupplier verbose;
   private final Function<Stream<Grant>, JoinMessage> registerFactory;
 
+  // Guards session start against shutdown, so shutdown never misses a newly started session.
+  private final Object sessionLock = new Object();
   private @Nullable volatile Session<JoinMessage, JoinMessage> session = null;
-  private ClusterMap cluster;
+  private boolean stopping = false; // guarded by sessionLock
+
+  // Each update swaps in a new map; volatile lets readers see it fully built without locking.
+  private volatile ClusterMap cluster;
   private final Object lock = new Object();
 
   /** Dials plaintext channels with the standard gRPC builder unless the application overrides it. */
@@ -204,40 +209,43 @@ public class Consumer extends AbstractService {
           State.RUNNING);
 
   private void connectLoop() {
+    var started = false;
     while (CONNECTABLE_STATES.contains(state())) {
       connectLimiter.acquire();
 
-      var session =
-          Session.startAsync(
-              clock,
-              instance.toProto().getInstance(),
-              internalPool,
-              joinClient::join,
-              Messages::unwrapSessionMessage,
-              Messages::wrapSessionMessage,
-              this.verbose,
-              this::handleConsumerMessage);
+      Session<JoinMessage, JoinMessage> session;
+      synchronized (sessionLock) {
+        if (stopping) {
+          return;
+        }
+        session =
+            Session.startAsync(
+                clock,
+                instance.toProto().getInstance(),
+                internalPool,
+                joinClient::join,
+                Messages::unwrapSessionMessage,
+                Messages::wrapSessionMessage,
+                this.verbose,
+                this::handleConsumerMessage);
+        // Queue Register before publishing, so a shutdown Deregister can only follow it.
+        session.sendAsync(registerFactory.apply(workPool.getStaleGrants()));
+        this.session = session;
+      }
 
       LOGGER.info("Started session {}", session);
-
-      var grants = workPool.getStaleGrants();
-      session.sendAsync(registerFactory.apply(grants));
 
       session.awaitEstablishedOrTerminated();
 
       if (session.isTerminated()) {
         LOGGER.info("Session {} is terminated before establishing. Reconnecting", session);
+        this.session = null;
         continue;
       }
 
-      this.session = session;
-
-      // This loop can reconnect, but we only want to notify that we started once. We should only be
-      // in the STARTING state once. If state == STOPPING, we've been told to stop while we were
-      // starting. In this case, we'll announce that we've started, which should trigger
-      // termination after start finishes.
-      var state = state();
-      if (state == State.STARTING || state == State.STOPPING) {
+      // Notify once: Guava defers a stop during startup until here, but not one during reconnect.
+      if (!started) {
+        started = true;
         notifyStarted();
       }
 
@@ -326,10 +334,15 @@ public class Consumer extends AbstractService {
    */
   @Override
   protected void doStop() {
-    internalPool.submit(() -> terminate(session));
+    internalPool.submit(this::terminate);
   }
 
-  private void terminate(@Nullable Session<JoinMessage, JoinMessage> session) {
+  private void terminate() {
+    Session<JoinMessage, JoinMessage> session;
+    synchronized (sessionLock) {
+      stopping = true;
+      session = this.session;
+    }
     if (session != null) {
       sendDeregister(session);
     }
@@ -349,7 +362,8 @@ public class Consumer extends AbstractService {
 
   private void trySend(JoinMessage msg) {
     var session = this.session;
-    if (session == null) {
+    // The session is published before Established, drop it until it's established.
+    if (session == null || !session.isEstablished()) {
       LOGGER.warn("No active session. Ignoring message: {}", msg);
       return;
     }
